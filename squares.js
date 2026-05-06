@@ -238,8 +238,6 @@ class RandomPlayer extends Agent{
         var moves = this.board.valid_moves(board)
         // Randomly picks one available move
         var index = Math.floor(moves.length * Math.random())
-        for(var i=0; i<50000000; i++){} // Making it very slow to test time restriction
-        for(var i=0; i<50000000; i++){} // Making it very slow to test time restriction
         return moves[index]
     }
 }
@@ -253,16 +251,15 @@ class RandomFetus1 extends Agent{
     compute(board, time){
         // Always cheks the current board status since opponent move can change several squares in the board
         var moves = this.valid_moves(board)
+        this.board = board
         // Randomly picks one available move
         if (moves[0].length == 0){
             moves = moves[1]
             
-            console.log("is empty")
-            return get_best_option(moves)
+            return this.get_best_option(moves)
         }
         else {
             moves = moves[0]
-            console.log("is not empty")
             var index = Math.floor(moves.length * Math.random())
         }
         
@@ -276,7 +273,10 @@ class RandomFetus1 extends Agent{
             for( var j=0; j<size; j++)
                 for( var s=0; s<4; s++){
                     let res = this.check(board, i, j, s)
-                    if(res == 1) recommended.push([i,j,s])
+                    if(res == 1){
+                        recommended.push([i,j,s])
+                        return [recommended, n_recommended]
+                    }
                     else if(res == 2) n_recommended.push([i,j,s])
                 }
         return [recommended, n_recommended]
@@ -315,6 +315,7 @@ class RandomFetus1 extends Agent{
 
     fill(board, i, j){
         var count = 0
+        var color = -2
         if(i<0 || i==board.length || j<0 || j==board.length) return count
     	
         if(board[i][j]==15 || board[i][j] == 14){
@@ -355,14 +356,6 @@ class RandomFetus1 extends Agent{
         return count
     }
 
-    get_best_option(moves){
-        var metrica = []
-        moves.forEach(move => metrica.push(this.fill(this.clone(board),move[0],move[1],move[2])))
-        const min = Math.min(...metrica);
-        const index = arr.indexOf(min);
-        return moves[index]
-    }
-
     clone(board){
         var size = board.length
         var b = []
@@ -373,6 +366,52 @@ class RandomFetus1 extends Agent{
         }
         return b
     }
+    
+    get_best_option(moves){
+        let bestValue = Infinity;
+        let bestMove = null;
+        let n_board = null
+        for (let i = 0; i < moves.length; i++){
+            let move = moves[i];
+            n_board = this.clone(this.board);
+
+            var s = move[2]
+            var row = move[0]
+            var col = move[1]
+            n_board[row][col] |= 1<<s
+            var value = this.fill(n_board, row, col)
+            if(row>0 && s==0){
+                n_board[row-1][col] |= 4
+                value += this.fill(n_board, row-1, col)
+            }
+            if(row<n_board.length-1 && s==2){
+                n_board[row+1][col] |= 1
+                value += this.fill(n_board, row+1, col)
+            }
+            if(col>0 && s==3){
+                n_board[row][col-1] |= 2
+                value += this.fill(n_board, row, col-1)
+            }
+            
+            if(col<n_board.length-1 && s==1){
+                n_board[row][col+1] |= 8
+                value += this.fill(n_board, row, col+1)
+            }
+
+            if (value < bestValue) {
+                bestValue = value;
+                bestMove = move;
+            }
+
+            if (bestValue == 1) {
+                return bestMove
+            }
+        }
+
+        return bestMove;
+}
+
+    
 }
 /*
  * Environment (Cannot be modified or any of its attributes accesed directly)

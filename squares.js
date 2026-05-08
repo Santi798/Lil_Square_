@@ -244,7 +244,12 @@ class RandomPlayer extends Agent{
     }
 }
 
-class RandomFetus1 extends Agent{
+/*
+ * This is an efficient deterministic Agent that avoids giving squares and minimizes when giving
+ * It is not random, though
+ *
+ */
+class RandomFetus extends Agent{
     constructor(){ 
         super() 
         this.board = new Board()
@@ -325,7 +330,7 @@ class RandomFetus1 extends Agent{
             if(i>0 && board[i-1][j]>=0){
                 board[i-1][j] += 4
                 count = this.fill(board,i-1,j,color)
-                return count + 1
+                count += 1
             }    
         }
         
@@ -334,7 +339,7 @@ class RandomFetus1 extends Agent{
             if(j<board.length-1 && board[i][j+1]>=0){
                 board[i][j+1] += 8
                 count = this.fill(board,i,j+1,color)
-                return count + 1
+                count += 1
             }    
         }
         
@@ -343,7 +348,7 @@ class RandomFetus1 extends Agent{
             if(i<board.length-1 && board[i+1][j]>=0){
                 board[i+1][j] += 1
                 count = this.fill(board,i+1,j,color)
-                return count + 1
+                count += 1
             }    
         }
         
@@ -352,7 +357,7 @@ class RandomFetus1 extends Agent{
             if(j>0 && board[i][j-1]>=0){
                 board[i][j-1] += 2
                 count = this.fill(board,i,j-1,color)
-                return count + 1
+                count += 1
             }    
         }
         return count
@@ -411,10 +416,237 @@ class RandomFetus1 extends Agent{
         }
 
         return bestMove;
+    }
+ 
 }
 
+/*
+ * This is a modified version of RandomFetus Agent
+ * It tries not to recheck wrong moves and it is happier
+ * It seems to be better for big boards
+ *
+ */
+class PibbleFetus extends Agent{
+    constructor(){ 
+        super() 
+        this.board = new Board()
+        this.recommended = []
+        this.n_recommended = []
+    }
+
+    compute(board, time){
+        // Always cheks the current board status since opponent move can change several squares in the board
+        if (this.recommended.length <= 0 && this.n_recommended.length <= 0) {
+            [this.recommended, this.n_recommended] = this.valid_moves(board)
+            this.compute = this.compute_main
+        }
+        this.board = board
+        // Picks a good move
+        if (this.recommended.length <= 0){
+            return this.get_best_option(this.n_recommended)
+        }
+        var move = this.recommended[0]
+        this.recommended.splice(0, 1)
+        return move
+    }
+
+    compute_main(board, time){
+        // Always cheks the remaining valid moves
+        var moves = this.valid_remaining_moves(board)
+        this.board = board
+        // Picks a good move
+        if (moves[0].length <= 0){
+            return this.get_best_option(moves[1])
+        }
+        return moves[0][0]
+    }
     
+    valid_moves(board){
+        // Travel across all board positions the first time (it is slower at first move)
+        var recommended = []
+        var n_recommended = []
+        var size = board.length
+        for( var i=0; i<size; i++)
+            for( var j=0; j<size; j++)
+                for( var s=0; s<4; s++){
+                    let res = this.check(board, i, j, s)
+                    if(res == 1){
+                        recommended.push([i,j,s])
+                    }
+                    else if(res == 2) n_recommended.push([i,j,s])
+                }
+        return [recommended, n_recommended]
+    }
+
+    valid_remaining_moves(board){
+        var index = 0
+        while(index < this.recommended.length){
+            let move = this.recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res == 1){
+                return [[[i,j,s]], this.n_recommended]
+            }
+            else if(res == 2){
+                this.n_recommended.push([i,j,s])
+            }
+            this.recommended.splice(index, 1)
+        }
+
+        index = 0
+        while(index < this.n_recommended.length){
+            let move = this.n_recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res == 2){
+                index ++
+            }
+            else this.n_recommended.splice(index, 1)
+        }
+
+        return [[], this.n_recommended]
+    }
+
+    check(board, r, c, s){
+        if(board[r][c] < 0) return false
+        var s_shift = 1<<s
+        if(((board[r][c] & s_shift)==s_shift)) return false
+
+        if ([14, 7, 11, 13].includes((board[r][c] | s_shift))) {
+            return 2
+        }
+        if(r>0 && s==0){
+            if ([14, 7, 11, 13].includes((board[r-1][c] | 4))) {
+            return 2
+        }
+        }
+        if(r<board.length-1 && s==2){
+            if ([14, 7, 11, 13].includes((board[r+1][c] | 1))) {
+            return 2
+            }
+        }
+        if(c>0 && s==3){
+            if ([14, 7, 11, 13].includes((board[r][c-1] | 2))) {
+            return 2
+            }
+        }
+        
+        if(c<board.length-1 && s==1){
+            if ([14, 7, 11, 13].includes((board[r][c+1] | 8))) {
+            return 2
+            }
+        }
+        return 1
+    }
+
+    fill(board, i, j){
+        var count = 0
+        var color = -2
+        if(i<0 || i==board.length || j<0 || j==board.length) return count
+    	
+        if(board[i][j]==15 || board[i][j] == 14){
+            board[i][j] = color
+            if(i>0 && board[i-1][j]>=0){
+                board[i-1][j] += 4
+                count = this.fill(board,i-1,j,color)
+                count += 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j] == 13){
+            board[i][j] = color
+            if(j<board.length-1 && board[i][j+1]>=0){
+                board[i][j+1] += 8
+                count = this.fill(board,i,j+1,color)
+                count += 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j]==11){
+            board[i][j] = color
+            if(i<board.length-1 && board[i+1][j]>=0){
+                board[i+1][j] += 1
+                count = this.fill(board,i+1,j,color)
+                count += 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j]==7){
+            board[i][j] = color
+            if(j>0 && board[i][j-1]>=0){
+                board[i][j-1] += 2
+                count = this.fill(board,i,j-1,color)
+                count += 1
+            }    
+        }
+        return count
+    }
+
+    clone(board){
+        var size = board.length
+        var b = []
+        for(var i=0; i<size; i++){
+            b[i] = []
+            for(var j=0; j<size; j++)
+                b[i][j] = board[i][j]
+        }
+        return b
+    }
+    
+    get_best_option(moves){
+        let bestValue = Infinity;
+        let bestMove = null;
+        let bestIndex = 0;
+        let n_board = null
+        for (let i = 0; i < moves.length; i++){
+            let move = moves[i];
+            n_board = this.clone(this.board);
+
+            var s = move[2]
+            var row = move[0]
+            var col = move[1]
+            n_board[row][col] |= 1<<s
+            var value = this.fill(n_board, row, col)
+            if(row>0 && s==0){
+                n_board[row-1][col] |= 4
+                value += this.fill(n_board, row-1, col)
+            }
+            if(row<n_board.length-1 && s==2){
+                n_board[row+1][col] |= 1
+                value += this.fill(n_board, row+1, col)
+            }
+            if(col>0 && s==3){
+                n_board[row][col-1] |= 2
+                value += this.fill(n_board, row, col-1)
+            }
+            
+            if(col<n_board.length-1 && s==1){
+                n_board[row][col+1] |= 8
+                value += this.fill(n_board, row, col+1)
+            }
+
+            if (value < bestValue) {
+                bestValue = value;
+                bestMove = move;
+                bestIndex = i;
+            }
+
+            if (bestValue == 1) {
+                moves.splice(bestIndex, 1)
+                return bestMove
+            }
+        }
+
+        moves.splice(bestIndex, 1)
+        return bestMove;
+    }
+ 
 }
+
 /*
  * Environment (Cannot be modified or any of its attributes accesed directly)
  */

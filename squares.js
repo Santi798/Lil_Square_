@@ -329,8 +329,8 @@ class RandomFetus extends Agent{
             board[i][j] = color
             if(i>0 && board[i-1][j]>=0){
                 board[i-1][j] += 4
-                count = this.fill(board,i-1,j,color)
-                count += 1
+                count = this.fill(board,i-1,j)
+                return count + 1
             }    
         }
         
@@ -338,8 +338,8 @@ class RandomFetus extends Agent{
             board[i][j] = color
             if(j<board.length-1 && board[i][j+1]>=0){
                 board[i][j+1] += 8
-                count = this.fill(board,i,j+1,color)
-                count += 1
+                count = this.fill(board,i,j+1)
+                return count + 1
             }    
         }
         
@@ -347,8 +347,8 @@ class RandomFetus extends Agent{
             board[i][j] = color
             if(i<board.length-1 && board[i+1][j]>=0){
                 board[i+1][j] += 1
-                count = this.fill(board,i+1,j,color)
-                count += 1
+                count = this.fill(board,i+1,j)
+                return count + 1
             }    
         }
         
@@ -356,8 +356,8 @@ class RandomFetus extends Agent{
             board[i][j] = color
             if(j>0 && board[i][j-1]>=0){
                 board[i][j-1] += 2
-                count = this.fill(board,i,j-1,color)
-                count += 1
+                count = this.fill(board,i,j-1)
+                return count + 1
             }    
         }
         return count
@@ -423,7 +423,7 @@ class RandomFetus extends Agent{
 /*
  * This is a modified version of RandomFetus Agent
  * It tries not to recheck wrong moves and it is happier
- * It seems to be better for big boards
+ * It seems to be slower due to early return removal in valid_moves :(
  *
  */
 class PibbleFetus extends Agent{
@@ -435,11 +435,9 @@ class PibbleFetus extends Agent{
     }
 
     compute(board, time){
-        // Always cheks the current board status since opponent move can change several squares in the board
-        if (this.recommended.length <= 0 && this.n_recommended.length <= 0) {
-            [this.recommended, this.n_recommended] = this.valid_moves(board)
-            this.compute = this.compute_main
-        }
+        // First cheks the current board status since opponent move can change several squares in the board
+        [this.recommended, this.n_recommended] = this.valid_moves(board)
+        this.compute = this.compute_main
         this.board = board
         // Picks a good move
         if (this.recommended.length <= 0){
@@ -451,14 +449,20 @@ class PibbleFetus extends Agent{
     }
 
     compute_main(board, time){
-        // Always cheks the remaining valid moves
-        var moves = this.valid_remaining_moves(board)
+        // Always checks the remaining valid moves
+        this.valid_remaining_moves(board)
         this.board = board
         // Picks a good move
-        if (moves[0].length <= 0){
-            return this.get_best_option(moves[1])
+        if (this.recommended.length <= 0){
+            if (this.n_recommended.length <= 0){
+                [this.recommended, this.n_recommended] = this.valid_moves(board)
+                return this.compute_main(board, time)
+            }
+            return this.get_best_option(this.n_recommended)
         }
-        return moves[0][0]
+        var move = this.recommended[0]
+        this.recommended.splice(0, 1)
+        return move
     }
     
     valid_moves(board){
@@ -479,6 +483,7 @@ class PibbleFetus extends Agent{
     }
 
     valid_remaining_moves(board){
+        // Complete travel (it is slower before the end)
         var index = 0
         while(index < this.recommended.length){
             let move = this.recommended[index]
@@ -487,12 +492,13 @@ class PibbleFetus extends Agent{
             let s = move[2]
             let res = this.check(board, i, j, s)
             if(res == 1){
-                return [[[i,j,s]], this.n_recommended]
+                index ++
             }
             else if(res == 2){
                 this.n_recommended.push([i,j,s])
+                this.recommended.splice(index, 1)
             }
-            this.recommended.splice(index, 1)
+            else this.recommended.splice(index, 1)
         }
 
         index = 0
@@ -507,8 +513,6 @@ class PibbleFetus extends Agent{
             }
             else this.n_recommended.splice(index, 1)
         }
-
-        return [[], this.n_recommended]
     }
 
     check(board, r, c, s){
@@ -552,8 +556,8 @@ class PibbleFetus extends Agent{
             board[i][j] = color
             if(i>0 && board[i-1][j]>=0){
                 board[i-1][j] += 4
-                count = this.fill(board,i-1,j,color)
-                count += 1
+                count = this.fill(board,i-1,j)
+                return count + 1
             }    
         }
         
@@ -561,8 +565,8 @@ class PibbleFetus extends Agent{
             board[i][j] = color
             if(j<board.length-1 && board[i][j+1]>=0){
                 board[i][j+1] += 8
-                count = this.fill(board,i,j+1,color)
-                count += 1
+                count = this.fill(board,i,j+1)
+                return count + 1
             }    
         }
         
@@ -570,8 +574,8 @@ class PibbleFetus extends Agent{
             board[i][j] = color
             if(i<board.length-1 && board[i+1][j]>=0){
                 board[i+1][j] += 1
-                count = this.fill(board,i+1,j,color)
-                count += 1
+                count = this.fill(board,i+1,j)
+                return count + 1
             }    
         }
         
@@ -579,8 +583,8 @@ class PibbleFetus extends Agent{
             board[i][j] = color
             if(j>0 && board[i][j-1]>=0){
                 board[i][j-1] += 2
-                count = this.fill(board,i,j-1,color)
-                count += 1
+                count = this.fill(board,i,j-1)
+                return count + 1
             }    
         }
         return count
@@ -645,6 +649,411 @@ class PibbleFetus extends Agent{
         return bestMove;
     }
  
+}
+
+class silksongPlayer extends Agent {
+    constructor() {
+        super();
+        this.boardUtil = new Board();
+        this.transpositionTable = new Map();
+        this.nodeCount = 0;
+    }
+
+    init(color, board, time=20000){
+        super.init(color, board, time);
+        this.ply = (color === 'R') ? -1 : -2;
+        this.oppPly = (this.ply === -1) ? -2 : -1;
+    }
+
+    // Minimax functions (4x4 or smaller grids)
+    
+    countSides(cellValue){
+        let count = 0;
+        if(cellValue & 1) count++;  // Top
+        if(cellValue & 2) count++;  // Right
+        if(cellValue & 4) count++;  // Bottom
+        if(cellValue & 8) count++;  // Left
+        return count;
+    }
+
+    evaluateMinimax(board){
+        let my = 0, opp = 0;
+        let totalBoxes = board.length * board.length;
+        
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                if(board[i][j] === this.ply) my++;
+                else if(board[i][j] === this.oppPly) opp++;
+            }
+        }
+        
+        // Terminal state detection
+        if(my + opp === totalBoxes){
+            if(my > opp) return 1000000 + my;
+            if(opp > my) return -1000000 - opp;
+            return 0;
+        }
+        
+        // Count strategic positions
+        let my3sided = 0;
+        let safe2sided = 0;
+        
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                if(board[i][j] >= 0){
+                    let sides = this.countSides(board[i][j]);
+                    if(sides === 3) my3sided++;
+                    else if(sides === 2) safe2sided++;
+                }
+            }
+        }
+        
+        return (my - opp) * 100 + my3sided * 20 + safe2sided * 1;
+    }
+
+    hashBoard(board, playerPly){
+        let hash = playerPly + '|';
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                hash += board[i][j] + ',';
+            }
+        }
+        return hash;
+    }
+
+    orderedMovesMinimax(board, playerPly){
+        let moves = this.boardUtil.valid_moves(board);
+        let scored = [];
+        
+        for(let m of moves){
+            let clone = this.boardUtil.clone(board);
+            let boxesBefore = this.countCapturedBoxes(clone);
+            
+            this.boardUtil.move(clone, m[0], m[1], m[2], playerPly);
+            
+            let boxesAfter = this.countCapturedBoxes(clone);
+            let boxesGained = boxesAfter - boxesBefore;
+            let threeSidedAfter = this.count3SidedBoxes(clone);
+            let twoSidedAfter = this.count2SidedBoxes(clone);
+            
+            let score = 0;
+            if(boxesGained > 0){
+                score = 10000 + boxesGained * 1000;
+            } else {
+                score = -threeSidedAfter * 100 + twoSidedAfter;
+            }
+            
+            scored.push({move: m, score: score});
+        }
+        
+        scored.sort((a,b) => b.score - a.score);
+        return scored.map(x => x.move);
+    }
+
+    countCapturedBoxes(board){
+        let count = 0;
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                if(board[i][j] < 0) count++;
+            }
+        }
+        return count;
+    }
+
+    count3SidedBoxes(board){
+        let count = 0;
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                if(board[i][j] >= 0 && this.countSides(board[i][j]) === 3){
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    count2SidedBoxes(board){
+        let count = 0;
+        for(let i=0; i<board.length; i++){
+            for(let j=0; j<board.length; j++){
+                if(board[i][j] >= 0 && this.countSides(board[i][j]) === 2){
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    minimax(board, playerPly, alpha, beta, depth){
+        this.nodeCount++;
+
+        let hash = this.hashBoard(board, playerPly);
+        if(this.transpositionTable.has(hash)){
+            return this.transpositionTable.get(hash);
+        }
+
+        let moves = this.boardUtil.valid_moves(board);
+        
+        if(moves.length === 0){
+            let result = {value: this.evaluateMinimax(board), move: null};
+            this.transpositionTable.set(hash, result);
+            return result;
+        }
+
+        moves = this.orderedMovesMinimax(board, playerPly);
+
+        let bestMove = moves[0]; // Initialize with first valid move
+
+        if(playerPly === this.ply){
+            let value = -Infinity;
+            
+            for(let m of moves){
+                let clone = this.boardUtil.clone(board);
+                let ok = this.boardUtil.move(clone, m[0], m[1], m[2], playerPly);
+                
+                if(!ok) continue;
+                
+                let gainedBoxes = this.hasGainedBoxes(board, clone, playerPly);
+                let nextPly = gainedBoxes ? playerPly : this.oppPly;
+                
+                let child = this.minimax(clone, nextPly, alpha, beta, depth + 1);
+                
+                if(child.value > value){
+                    value = child.value;
+                    bestMove = m;
+                }
+                
+                alpha = Math.max(alpha, value);
+                if(alpha >= beta) break;
+            }
+            
+            let result = {value: value, move: bestMove};
+            this.transpositionTable.set(hash, result);
+            return result;
+            
+        } else {
+            let value = Infinity;
+            
+            for(let m of moves){
+                let clone = this.boardUtil.clone(board);
+                let ok = this.boardUtil.move(clone, m[0], m[1], m[2], playerPly);
+                
+                if(!ok) continue;
+                
+                let gainedBoxes = this.hasGainedBoxes(board, clone, playerPly);
+                let nextPly = gainedBoxes ? playerPly : this.ply;
+                
+                let child = this.minimax(clone, nextPly, alpha, beta, depth + 1);
+                
+                if(child.value < value){
+                    value = child.value;
+                    bestMove = m;
+                }
+                
+                beta = Math.min(beta, value);
+                if(alpha >= beta) break;
+            }
+            
+            let result = {value: value, move: bestMove};
+            this.transpositionTable.set(hash, result);
+            return result;
+        }
+    }
+
+    hasGainedBoxes(oldBoard, newBoard, ply){
+        for(let i=0; i<oldBoard.length; i++){
+            for(let j=0; j<oldBoard.length; j++){
+                if(oldBoard[i][j] >= 0 && newBoard[i][j] === ply){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Heuristic functions 
+
+    countBits(x) {
+        let c = 0;
+        for (let k = 0; k < 4; k++) if (x & (1 << k)) c++;
+        return c;
+    }
+
+    evaluate(board, player) {
+        const opp = (player === -1) ? -2 : -1;
+        let myScore = 0, oppScore = 0;
+        for (let i = 0; i < board.length; i++) {
+            for (let j = 0; j < board.length; j++) {
+                const v = board[i][j];
+                if (v === player) myScore++;
+                else if (v === opp) oppScore++;
+            }
+        }
+        return myScore - oppScore;
+    }
+
+    computePhase(board) {
+        let lines = 0, total = board.length * board.length * 4;
+        for (let i = 0; i < board.length; i++)
+            for (let j = 0; j < board.length; j++)
+                if (board[i][j] >= 0) lines += this.countBits(board[i][j]);
+        return lines / total;
+    }
+
+    willGiveAway(board, i, j, s) {
+        const size = board.length;
+        const near = [[i,j],[i-1,j],[i+1,j],[i,j-1],[i,j+1]];
+        for (const [ni, nj] of near) {
+            if (ni < 0 || nj < 0 || ni >= size || nj >= size) continue;
+            const v = board[ni][nj];
+            if (v >= 0 && this.countBits(v) === 3) return true;
+        }
+        return false;
+    }
+
+    givesOpponentBox(board, i, j, s) {
+        const size = board.length;
+        const adj = [[i,j],[i-1,j],[i+1,j],[i,j-1],[i,j+1]];
+        for (const [x,y] of adj) {
+            if (x < 0 || y < 0 || x >= size || y >= size) continue;
+            const v = board[x][y];
+            if (v >= 0 && this.countBits(v) === 3) return true;
+        }
+        return false;
+    }
+
+    createsMyChain(board, i, j, s) {
+        const size = board.length;
+        const adj = [[i,j],[i-1,j],[i+1,j],[i,j-1],[i,j+1]];
+        let count = 0;
+        for (const [x,y] of adj) {
+            if (x < 0 || y < 0 || x >= size || y >= size) continue;
+            const v = board[x][y];
+            if (v >= 0 && this.countBits(v) === 2) count++;
+        }
+        return count;
+    }
+
+    secondStrategy(board, player, phase, moves) {
+        let bestMove = moves[0];
+        let bestScore = -Infinity;
+        const gainWeight = phase > 0.6 ? 1.8 : 1.2;
+        const riskWeight = phase < 0.5 ? 0.8 : 1.4;
+
+        const baseEval = this.evaluate(board, player);
+
+        for (const [i, j, s] of moves) {
+            if (!this.boardUtil.check(board, i, j, s)) continue;
+            const clone = this.boardUtil.clone(board);
+            this.boardUtil.move(clone, i, j, s, player);
+
+            const gain = this.evaluate(clone, player) - baseEval;
+
+            let opponentBoxes = 0;
+            for (let x = 0; x < clone.length; x++)
+                for (let y = 0; y < clone.length; y++)
+                    if (clone[x][y] >= 0 && this.countBits(clone[x][y]) === 3)
+                        opponentBoxes++;
+
+            const giveAway = this.willGiveAway(board, i, j, s);
+            const score =
+                gain * gainWeight
+                - giveAway * 2.0
+                - opponentBoxes * riskWeight
+                + Math.random() * 0.01;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [i, j, s];
+            }
+        }
+
+        return bestMove;
+    }
+
+    firstStrategy(board, player, phase, moves) {
+        let bestMove = moves[0];
+        let bestScore = -Infinity;
+        const early = phase < 0.35;
+        const late = phase > 0.75;
+        const baseScore = this.evaluate(board, player);
+
+        for (const [i, j, s] of moves) {
+            const clone = this.boardUtil.clone(board);
+            this.boardUtil.move(clone, i, j, s, player);
+
+            const afterScore = this.evaluate(clone, player);
+            const gain = afterScore - baseScore;
+            const givesBox = this.givesOpponentBox(board, i, j, s);
+            const chain = this.createsMyChain(board, i, j, s);
+
+            const cx = (board.length - 1) / 2;
+            const centerBias = 1 - (Math.abs(i - cx) + Math.abs(j - cx)) / board.length;
+
+            let score =
+                gain * 5.0 +
+                chain * 1.2 +
+                centerBias * (early ? 1.5 : 0.3) -
+                givesBox * (late ? 3.0 : 1.2)
+                + Math.random() * 0.01;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [i, j, s];
+            }
+        }
+
+        return bestMove;
+    }
+
+    // Main compute function 
+
+    compute(board, time) {
+        const boardSize = board.length;
+
+        // Use full minimax for 4x4 or smaller grids
+        if(boardSize <= 4){
+            this.nodeCount = 0;
+            this.transpositionTable.clear();
+
+            const moves = this.boardUtil.valid_moves(board);
+            if(!moves.length) return [0,0,0];
+
+            const result = this.minimax(
+                this.boardUtil.clone(board),
+                this.ply,
+                -Infinity,
+                Infinity,
+                0
+            );
+
+            // Safety check: ensure we return a valid move
+            if(result.move && this.boardUtil.check(board, result.move[0], result.move[1], result.move[2])){
+                return result.move;
+            }
+            
+            // Fallback: find first valid move
+            for(let m of moves){
+                if(this.boardUtil.check(board, m[0], m[1], m[2])){
+                    return m;
+                }
+            }
+            
+            return moves[0]; // Last resort
+        }
+
+        // Use heuristic strategy for larger grids
+        const player = (this.color === 'R') ? -1 : -2;
+        const isFirst = (this.color === 'R');
+        const moves = this.boardUtil.valid_moves(board);
+        if (!moves.length) return [0,0,0];
+
+        const phase = this.computePhase(board);
+
+        return isFirst
+            ? this.firstStrategy(board, player, phase, moves)
+            : this.secondStrategy(board, player, phase, moves);
+    }
 }
 
 /*

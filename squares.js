@@ -1145,7 +1145,8 @@ class FetusFetus extends Agent{
 }
 
 
-// PibbleFetus but returning first recommended, using "swap and pop" instead of splice and without .includes
+// PibbleFetus but returning first recommended, using "swap and pop" instead of splice, 
+// without .includes and using ===
 class LastFetus extends Agent{
     constructor(){ 
         super()

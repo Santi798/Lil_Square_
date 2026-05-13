@@ -1162,8 +1162,8 @@ class LastFetus extends Agent{
 
     compute(board, time){
         // Always checks the remaining valid moves
-        var recommended_move = this.valid_remaining_moves(board)
         this.board = board
+        var recommended_move = this.valid_remaining_moves(board)
         // Picks a good move
         if (!recommended_move){
             if (this.n_recommended.length <= 0){
@@ -1180,9 +1180,9 @@ class LastFetus extends Agent{
         var recommended = []
         var n_recommended = []
         var size = board.length
-        for( var i=0; i<size; i++)
-            for( var j=0; j<size; j++)
-                for( var s=0; s<4; s++){
+        for( var i=size-1; i>=0; i--)
+            for( var j=size-1; j>=0; j--)
+                for( var s=3; s>=0; s--){
                     let res = this.check(board, i, j, s)
                     if(res === 1){
                         recommended.push([i,j,s])

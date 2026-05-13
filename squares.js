@@ -429,7 +429,7 @@ class RandomFetus extends Agent{
 class PibbleFetus extends Agent{
     constructor(){ 
         super() 
-        this.board = new Board()
+        this.board = null
         this.recommended = []
         this.n_recommended = []
     }
@@ -443,8 +443,9 @@ class PibbleFetus extends Agent{
         if (this.recommended.length <= 0){
             return this.get_best_option(this.n_recommended)
         }
-        var move = this.recommended[0]
-        this.recommended.splice(0, 1)
+        var index = Math.floor(this.recommended.length * Math.random())
+        var move = this.recommended[index]
+        this.recommended.splice(index, 1)
         return move
     }
 
@@ -460,8 +461,9 @@ class PibbleFetus extends Agent{
             }
             return this.get_best_option(this.n_recommended)
         }
-        var move = this.recommended[0]
-        this.recommended.splice(0, 1)
+        var index = Math.floor(this.recommended.length * Math.random())
+        var move = this.recommended[index]
+        this.recommended.splice(index, 1)
         return move
     }
     
@@ -545,6 +547,291 @@ class PibbleFetus extends Agent{
             }
         }
         return 1
+    }
+
+    fill(board, i, j){
+        var count = 0
+        var color = -2
+        if(i<0 || i==board.length || j<0 || j==board.length) return count
+    	
+        if(board[i][j]==15 || board[i][j] == 14){
+            board[i][j] = color
+            if(i>0 && board[i-1][j]>=0){
+                board[i-1][j] += 4
+                count = this.fill(board,i-1,j)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j] == 13){
+            board[i][j] = color
+            if(j<board.length-1 && board[i][j+1]>=0){
+                board[i][j+1] += 8
+                count = this.fill(board,i,j+1)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j]==11){
+            board[i][j] = color
+            if(i<board.length-1 && board[i+1][j]>=0){
+                board[i+1][j] += 1
+                count = this.fill(board,i+1,j)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]==15 || board[i][j]==7){
+            board[i][j] = color
+            if(j>0 && board[i][j-1]>=0){
+                board[i][j-1] += 2
+                count = this.fill(board,i,j-1)
+                return count + 1
+            }    
+        }
+        return count
+    }
+
+    clone(board){
+        var size = board.length
+        var b = []
+        for(var i=0; i<size; i++){
+            b[i] = []
+            for(var j=0; j<size; j++)
+                b[i][j] = board[i][j]
+        }
+        return b
+    }
+    
+    get_best_option(moves){
+        let bestValue = Infinity;
+        let bestMove = null;
+        let bestIndex = 0;
+        let n_board = null
+        for (let i = 0; i < moves.length; i++){
+            let move = moves[i];
+            n_board = this.clone(this.board);
+
+            var s = move[2]
+            var row = move[0]
+            var col = move[1]
+            n_board[row][col] |= 1<<s
+            var value = this.fill(n_board, row, col)
+            if(row>0 && s==0){
+                n_board[row-1][col] |= 4
+                value += this.fill(n_board, row-1, col)
+            }
+            if(row<n_board.length-1 && s==2){
+                n_board[row+1][col] |= 1
+                value += this.fill(n_board, row+1, col)
+            }
+            if(col>0 && s==3){
+                n_board[row][col-1] |= 2
+                value += this.fill(n_board, row, col-1)
+            }
+            
+            if(col<n_board.length-1 && s==1){
+                n_board[row][col+1] |= 8
+                value += this.fill(n_board, row, col+1)
+            }
+
+            if (value < bestValue) {
+                bestValue = value;
+                bestMove = move;
+                bestIndex = i;
+            }
+
+            if (bestValue == 1) {
+                moves.splice(bestIndex, 1)
+                return bestMove
+            }
+        }
+
+        moves.splice(bestIndex, 1)
+        return bestMove;
+    }
+ 
+}
+
+
+/*
+ * This is a modified version of PibbleFetus Agent
+ * It checks chain (but seems to be worse)
+ *
+ */
+class PityFetus extends Agent{
+    constructor(){ 
+        super() 
+        this.board = null
+        this.first_recommended = []
+        this.second_recommended = []
+        this.n_recommended = []
+    }
+
+    compute(board, time){
+        // First cheks the current board status since opponent move can change several squares in the board
+        this.board = board
+        [this.first_recommended, this.n_recommended, this.second_recommended] = this.valid_moves(board)
+        this.compute = this.compute_main
+        return this.compute(board,time)
+    }
+
+    compute_main(board, time){
+        // Always checks the remaining valid moves
+        this.board = board
+        this.valid_remaining_moves(board)
+        // Picks a good move
+        if (this.first_recommended.length <= 0){
+            if (this.n_recommended.length <= 0){
+                [this.first_recommended, this.n_recommended, this.second_recommended] = this.valid_moves(board)
+                return this.compute_main(board, time)
+            }
+            if (this.second_recommended.length <= 0) return this.get_best_option(this.n_recommended)
+            var index = Math.floor(this.second_recommended.length * Math.random())
+            var move = this.second_recommended[index]
+            this.second_recommended.splice(index, 1)
+            return move
+        }
+        var index = Math.floor(this.first_recommended.length * Math.random())
+        var move = this.first_recommended[index]
+        this.first_recommended.splice(index, 1)
+        return move
+    }
+    
+    valid_moves(board){
+        // Travel across all board positions the first time (it is slower at first move)
+        var first_recommended = []
+        var second_recommended = []
+        var n_recommended = []
+        var size = board.length
+        for( var i=0; i<size; i++)
+            for( var j=0; j<size; j++)
+                for( var s=0; s<4; s++){
+                    let res = this.check(board, i, j, s)
+                    if(res == 1){
+                        if (!this.check_chain(i,j,s, board)) {
+                            first_recommended.push([i,j,s])
+                        }
+                        second_recommended.push([i,j,s])
+                    }
+                    else if(res == 2) n_recommended.push([i,j,s])
+                }
+        return [first_recommended, n_recommended, second_recommended]
+    }
+
+    valid_remaining_moves(board){
+        // Complete travel (it is slower before the end)
+        var index = 0
+        while(index < this.first_recommended.length){
+            let move = this.first_recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res == 1){
+                if (!this.check_chain(i,j,s, board)) {
+                    index ++
+                }
+                else {
+                    this.second_recommended.push([i,j,s])
+                    this.first_recommended.splice(index, 1)
+                }
+            }
+            else if(res == 2){
+                this.n_recommended.push([i,j,s])
+                this.first_recommended.splice(index, 1)
+            }
+            else this.first_recommended.splice(index, 1)
+        }
+
+        index = 0
+        while(index < this.second_recommended.length){
+            let move = this.second_recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res == 1){
+                index ++
+            }
+            else if(res == 2){
+                this.n_recommended.push([i,j,s])
+                this.second_recommended.splice(index, 1)
+            }
+            else this.second_recommended.splice(index, 1)
+        }
+
+        index = 0
+        while(index < this.n_recommended.length){
+            let move = this.n_recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res == 2){
+                index ++
+            }
+            else this.n_recommended.splice(index, 1)
+        }
+    }
+
+    check(board, r, c, s){
+        if(board[r][c] < 0) return false
+        var s_shift = 1<<s
+        if(((board[r][c] & s_shift)==s_shift)) return false
+
+        if ([14, 7, 11, 13].includes((board[r][c] | s_shift))) {
+            return 2
+        }
+        if(r>0 && s==0){
+            if ([14, 7, 11, 13].includes((board[r-1][c] | 4))) {
+            return 2
+        }
+        }
+        if(r<board.length-1 && s==2){
+            if ([14, 7, 11, 13].includes((board[r+1][c] | 1))) {
+            return 2
+            }
+        }
+        if(c>0 && s==3){
+            if ([14, 7, 11, 13].includes((board[r][c-1] | 2))) {
+            return 2
+            }
+        }
+        
+        if(c<board.length-1 && s==1){
+            if ([14, 7, 11, 13].includes((board[r][c+1] | 8))) {
+            return 2
+            }
+        }
+        return 1
+    }
+
+    check_chain(i, j, s, board){
+        var n = board.length - 1
+        if (s == 1 || s == 3){
+            if (i != 0 && i != n){
+                return ((board[i-1][j] == 10 || board[i+1][j] == 10) && (board[i][j] == 2 || board[i][j] == 8))
+            }
+            else if (i == 0){
+                return (( board[i+1][j] == 10) && (board[i][j] == 2 || board[i][j] == 8))
+            }
+            else if (i == n){
+                return ((board[i-1][j] == 10) && (board[i][j] == 2 || board[i][j] == 8))
+            }
+        }
+        else if (s == 0|| s == 2 ){
+            if (j != 0 && j != n){
+                
+                return (((board[i][j-1]) == 5 || (board[i][j+1]) == 5) && ((board[i][j]) == 1 || (board[i][j]) == 4))
+            }
+            else if (j == 0){
+                return (( board[i][j+1] == 5) && (board[i][j] == 1 || board[i][j] == 4))
+            }
+            else if (j == n){
+                return ((board[i][j-1] == 5) && (board[i][j] == 1 || board[i][j] == 4))
+            }
+        }
     }
 
     fill(board, i, j){
@@ -852,6 +1139,234 @@ class FetusFetus extends Agent{
             }
         }
 
+        return bestMove;
+    }
+ 
+}
+
+
+// PibbleFetus but returning first recommended, using "swap and pop" instead of splice and without .includes
+class LastFetus extends Agent{
+    constructor(){ 
+        super()
+        this.recommended = []
+        this.n_recommended = []
+        this.board = null
+    }
+
+    init(color, board, time=20000){
+        super.init(color, board, time);
+        [this.recommended, this.n_recommended] = this.valid_moves(board)
+    }
+
+    compute(board, time){
+        // Always checks the remaining valid moves
+        var recommended_move = this.valid_remaining_moves(board)
+        this.board = board
+        // Picks a good move
+        if (!recommended_move){
+            if (this.n_recommended.length <= 0){
+                [this.recommended, this.n_recommended] = this.valid_moves(board)
+                return this.compute(board, time)
+            }
+            return this.get_best_option(this.n_recommended)
+        }
+        return recommended_move
+    }
+    
+    valid_moves(board){
+        // Travel across all board positions the first time (it is slower at first move)
+        var recommended = []
+        var n_recommended = []
+        var size = board.length
+        for( var i=0; i<size; i++)
+            for( var j=0; j<size; j++)
+                for( var s=0; s<4; s++){
+                    let res = this.check(board, i, j, s)
+                    if(res === 1){
+                        recommended.push([i,j,s])
+                    }
+                    else if(res === 2) n_recommended.push([i,j,s])
+                }
+        return [recommended, n_recommended]
+    }
+
+    valid_remaining_moves(board){
+        // Complete travel (it is slower before the end)
+        var index = 0
+        while(index < this.recommended.length){
+            let move = this.recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res === 1){
+                this.recommended[index] = this.recommended[this.recommended.length - 1]
+                this.recommended.pop()
+                return [i,j,s]
+            }
+            else if(res === 2){
+                this.n_recommended.push([i,j,s])
+                this.recommended[index] = this.recommended[this.recommended.length - 1]
+                this.recommended.pop()
+            }
+            else {
+                this.recommended[index] = this.recommended[this.recommended.length - 1]
+                this.recommended.pop()
+            }
+        }
+
+        index = 0
+        while(index < this.n_recommended.length){
+            let move = this.n_recommended[index]
+            let i = move[0]
+            let j = move[1]
+            let s = move[2]
+            let res = this.check(board, i, j, s)
+            if(res === 2){
+                index ++
+            }
+            else {
+                this.n_recommended[index] = this.n_recommended[this.n_recommended.length - 1]
+                this.n_recommended.pop()
+            }
+        }
+    }
+
+    check(board, r, c, s){
+        if(board[r][c] < 0) return false
+        var s_shift = 1<<s
+        if(((board[r][c] & s_shift) === s_shift)) return false
+
+        let v = board[r][c] | s_shift
+        if(v === 14 || v === 13 || v === 11 || v === 7){
+            return 2
+        }
+
+        if(r > 0 && s === 0){
+            v = board[r-1][c] | 4
+            if(v === 14 || v === 13 || v === 11 || v === 7) return 2
+        }
+
+        if(r < board.length-1 && s === 2){
+            v = board[r+1][c] | 1
+            if(v === 14 || v === 13 || v === 11 || v === 7) return 2
+        }
+
+        if(c > 0 && s === 3){
+            v = board[r][c-1] | 2
+            if(v === 14 || v === 13 || v === 11 || v === 7) return 2
+        }
+
+        if(c < board.length-1 && s === 1){
+            v = board[r][c+1] | 8
+            if(v === 14 || v === 13 || v === 11 || v === 7) return 2
+        }
+
+        return 1
+    }
+
+    fill(board, i, j){
+        var count = 0
+        var color = -2
+        if(i<0 || i===board.length || j<0 || j===board.length) return count
+    	
+        if(board[i][j]===15 || board[i][j] === 14){
+            board[i][j] = color
+            if(i>0 && board[i-1][j]>=0){
+                board[i-1][j] += 4
+                count = this.fill(board,i-1,j)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]===15 || board[i][j] === 13){
+            board[i][j] = color
+            if(j<board.length-1 && board[i][j+1]>=0){
+                board[i][j+1] += 8
+                count = this.fill(board,i,j+1)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]===15 || board[i][j]===11){
+            board[i][j] = color
+            if(i<board.length-1 && board[i+1][j]>=0){
+                board[i+1][j] += 1
+                count = this.fill(board,i+1,j)
+                return count + 1
+            }    
+        }
+        
+        if(board[i][j]===15 || board[i][j]===7){
+            board[i][j] = color
+            if(j>0 && board[i][j-1]>=0){
+                board[i][j-1] += 2
+                count = this.fill(board,i,j-1)
+                return count + 1
+            }    
+        }
+        return count
+    }
+
+    clone(board){
+        var size = board.length
+        var b = []
+        for(var i=0; i<size; i++){
+            b[i] = []
+            for(var j=0; j<size; j++)
+                b[i][j] = board[i][j]
+        }
+        return b
+    }
+    
+    get_best_option(moves){
+        let bestValue = Infinity;
+        let bestMove = null;
+        let bestIndex = 0;
+        let n_board = null
+        for (let i = 0; i < moves.length; i++){
+            let move = moves[i];
+            n_board = this.clone(this.board);
+
+            var s = move[2]
+            var row = move[0]
+            var col = move[1]
+            n_board[row][col] |= 1<<s
+            var value = this.fill(n_board, row, col)
+            if(row>0 && s===0){
+                n_board[row-1][col] |= 4
+                value += this.fill(n_board, row-1, col)
+            }
+            if(row<n_board.length-1 && s===2){
+                n_board[row+1][col] |= 1
+                value += this.fill(n_board, row+1, col)
+            }
+            if(col>0 && s===3){
+                n_board[row][col-1] |= 2
+                value += this.fill(n_board, row, col-1)
+            }
+            
+            if(col<n_board.length-1 && s===1){
+                n_board[row][col+1] |= 8
+                value += this.fill(n_board, row, col+1)
+            }
+
+            if (value < bestValue) {
+                bestValue = value;
+                bestMove = move;
+                bestIndex = i;
+            }
+
+            if (bestValue === 1) {
+                moves[bestIndex] = moves[moves.length - 1]
+                moves.pop()
+                return bestMove
+            }
+        }
+
+        moves[bestIndex] = moves[moves.length - 1]
+        moves.pop()
         return bestMove;
     }
  
